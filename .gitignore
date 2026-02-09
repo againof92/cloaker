@@ -1,0 +1,7 @@
+/target/
+.env
+*.log
+*.db
+*.db-shm
+*.db-wal
+temp_supergravity/

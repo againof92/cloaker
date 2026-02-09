@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: cloaker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: DATABASE_URL
+        sync: false
+      - key: CLOAKER_ADMIN_USER
+        sync: false
+      - key: CLOAKER_ADMIN_PASS
+        sync: false
+    healthCheckPath: /
