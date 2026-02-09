@@ -228,13 +228,21 @@ pub async fn handle_links(
 // ==========================================
 pub async fn handle_create_link(
     State(state): State<Arc<AppState>>,
+    method: Method,
     form: Option<Form<HashMap<String, String>>>,
 ) -> impl IntoResponse {
     let config = state.db.config.read().await;
     let param_name = config.param_name.clone();
     drop(config);
 
-    if let Some(Form(data)) = form {
+    if method == Method::POST {
+        let Some(Form(data)) = form else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Html(templates::error_page("Requisicao invalida")),
+            )
+                .into_response();
+        };
         let slug = data
             .get("slug")
             .map(|s| s.trim().to_string())
@@ -346,6 +354,7 @@ pub async fn handle_create_link(
 pub async fn handle_edit_link(
     State(state): State<Arc<AppState>>,
     Query(q): Query<HashMap<String, String>>,
+    method: Method,
     form: Option<Form<HashMap<String, String>>>,
 ) -> impl IntoResponse {
     let id = q.get("id").cloned().unwrap_or_default();
@@ -357,7 +366,14 @@ pub async fn handle_edit_link(
     let param_name = config.param_name.clone();
     drop(config);
 
-    if let Some(Form(data)) = form {
+    if method == Method::POST {
+        let Some(Form(data)) = form else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Html(templates::error_page("Requisicao invalida")),
+            )
+                .into_response();
+        };
         let slug = data
             .get("slug")
             .map(|s| s.trim().to_string())
@@ -486,9 +502,17 @@ pub async fn handle_delete_link(
 // ==========================================
 pub async fn handle_config(
     State(state): State<Arc<AppState>>,
+    method: Method,
     form: Option<Form<HashMap<String, String>>>,
 ) -> impl IntoResponse {
-    if let Some(Form(data)) = form {
+    if method == Method::POST {
+        let Some(Form(data)) = form else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Html(templates::error_page("Requisicao invalida")),
+            )
+                .into_response();
+        };
         let param_name = data
             .get("param_name")
             .map(|s| s.trim().to_string())
