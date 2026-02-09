@@ -2,7 +2,7 @@ use crate::engine::bot_detect;
 use crate::engine::helpers;
 use crate::models::{AccessLog, GeoInfo, ParamCache, RedirectLink, SeenIP};
 use crate::AppState;
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -39,7 +39,6 @@ pub async fn validate_access(
         .get(&param_name)
         .cloned()
         .unwrap_or_default();
-    let ua_lower = ctx.user_agent.to_lowercase();
 
     // Regras sempre ativas
     let strict_param = true;
@@ -151,10 +150,10 @@ pub async fn validate_access(
 
     // Anti-bot
     if allowed && bot_protection {
-        if bot_detect::is_bot(&ua_lower) {
+        if bot_detect::is_bot(ctx.user_agent) {
             allowed = false;
             reason = "Bot detectado (UA)".into();
-        } else if bot_detect::is_automation_tool(&ua_lower) {
+        } else if bot_detect::is_automation_tool(ctx.user_agent) {
             allowed = false;
             reason = "Ferramenta de automacao detectada".into();
         }
@@ -187,7 +186,7 @@ async fn is_ip_temporarily_blocked(
     if let Some(entry) = seen_ips.get(&key) {
         if let Some(blocked_at) = entry.blocked_at {
             let elapsed = Utc::now() - blocked_at;
-            if elapsed < Duration::seconds(SEEN_IP_BLOCK_SECONDS) {
+            if elapsed < TimeDelta::seconds(SEEN_IP_BLOCK_SECONDS) {
                 let remaining = (SEEN_IP_BLOCK_SECONDS - elapsed.num_seconds()).max(1);
                 return Some(format!(
                     "IP bloqueado por excesso de tentativas. Aguarde {}s",

@@ -1,5 +1,5 @@
 use crate::models::{GeoCacheEntry, GeoInfo};
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use tracing::warn;
@@ -69,7 +69,7 @@ impl GeoCache {
             ip.to_string(),
             GeoCacheEntry {
                 info: info.clone(),
-                expires: Utc::now() + Duration::minutes(10),
+                expires: Utc::now() + TimeDelta::minutes(10),
             },
         );
     }

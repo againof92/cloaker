@@ -178,7 +178,7 @@ fn spawn_cleanup(state: Arc<AppState>) {
             // Limpa sessões expiradas (> 24 h)
             {
                 let mut sess = state.sessions.write().await;
-                let cutoff = chrono::Utc::now() - chrono::Duration::hours(24);
+                let cutoff = chrono::Utc::now() - chrono::TimeDelta::hours(24);
                 sess.retain(|_, ts| *ts > cutoff);
             }
 
@@ -186,7 +186,7 @@ fn spawn_cleanup(state: Arc<AppState>) {
             {
                 let mut seen = state.db.seen_ips.write().await;
                 let now = chrono::Utc::now();
-                let seen_cutoff = now - chrono::Duration::hours(24);
+                let seen_cutoff = now - chrono::TimeDelta::hours(24);
                 seen.retain(|_, ip| {
                     let recently_seen = ip.last_seen > seen_cutoff;
                     let block_still_active = ip
@@ -203,7 +203,7 @@ fn spawn_cleanup(state: Arc<AppState>) {
             {
                 let mut cache = state.db.param_cache.write().await;
                 let now = chrono::Utc::now();
-                cache.retain(|_, pc| now.signed_duration_since(pc.created_at).num_hours() < 24);
+                cache.retain(|_, pc| (now - pc.created_at).num_hours() < 24);
             }
         }
     });

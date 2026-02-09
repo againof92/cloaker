@@ -184,32 +184,266 @@ pub fn is_facebook_ad_traffic(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    // ============================================================
+    // REGRA 4: Bloqueio de bots e automação
+    // ============================================================
 
     #[test]
-    fn test_is_bot() {
-        assert!(is_bot("Mozilla/5.0 (compatible; Googlebot/2.1)"));
-        assert!(!is_bot("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0)"));
+    fn test_is_bot_googlebot() {
+        assert!(is_bot("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"));
     }
 
     #[test]
-    fn test_is_mobile_device() {
-        assert!(is_mobile_device("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0)"));
-        assert!(is_mobile_device("Mozilla/5.0 (Linux; Android 13)"));
-        assert!(!is_mobile_device(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        ));
-        assert!(!is_mobile_device(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-        ));
+    fn test_is_bot_bingbot() {
+        assert!(is_bot("Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"));
     }
 
     #[test]
-    fn test_is_facebook_ad_traffic() {
-        let mut params = std::collections::HashMap::new();
-        params.insert("fbclid".into(), "123".into());
+    fn test_is_bot_facebookexternalhit() {
+        assert!(is_bot("facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"));
+    }
+
+    #[test]
+    fn test_is_bot_semrushbot() {
+        assert!(is_bot("Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)"));
+    }
+
+    #[test]
+    fn test_is_bot_curl() {
+        assert!(is_bot("curl/7.88.1"));
+    }
+
+    #[test]
+    fn test_is_bot_wget() {
+        assert!(is_bot("Wget/1.21.4"));
+    }
+
+    #[test]
+    fn test_is_bot_python_requests() {
+        assert!(is_bot("python-requests/2.31.0"));
+    }
+
+    #[test]
+    fn test_is_bot_postman() {
+        assert!(is_bot("PostmanRuntime/7.33.0"));
+    }
+
+    #[test]
+    fn test_is_bot_real_iphone_not_bot() {
+        assert!(!is_bot("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"));
+    }
+
+    #[test]
+    fn test_is_bot_real_android_not_bot() {
+        assert!(!is_bot("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36"));
+    }
+
+    #[test]
+    fn test_is_bot_empty_ua_not_bot() {
+        assert!(!is_bot(""));
+    }
+
+    #[test]
+    fn test_is_automation_selenium() {
+        assert!(is_automation_tool("Mozilla/5.0 Selenium WebDriver"));
+    }
+
+    #[test]
+    fn test_is_automation_puppeteer() {
+        assert!(is_automation_tool("Mozilla/5.0 HeadlessChrome/120.0 Puppeteer"));
+    }
+
+    #[test]
+    fn test_is_automation_playwright() {
+        assert!(is_automation_tool("Mozilla/5.0 Playwright/1.40"));
+    }
+
+    #[test]
+    fn test_is_automation_headless_chrome() {
+        assert!(is_automation_tool("Mozilla/5.0 HeadlessChrome/120.0.6099.0"));
+    }
+
+    #[test]
+    fn test_is_automation_real_user_not_automation() {
+        assert!(!is_automation_tool("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"));
+    }
+
+    // ============================================================
+    // REGRA 3: Somente mobile iPhone/Android
+    // ============================================================
+
+    #[test]
+    fn test_mobile_iphone_safari() {
+        assert!(is_mobile_device("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"));
+    }
+
+    #[test]
+    fn test_mobile_iphone_chrome() {
+        assert!(is_mobile_device("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1"));
+    }
+
+    #[test]
+    fn test_mobile_iphone_facebook_app() {
+        assert!(is_mobile_device("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/21A329 [FBAN/FBIOS;FBAV/441.0.0.36.110]"));
+    }
+
+    #[test]
+    fn test_mobile_android_chrome() {
+        assert!(is_mobile_device("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36"));
+    }
+
+    #[test]
+    fn test_mobile_android_samsung() {
+        assert!(is_mobile_device("Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.43 Mobile Safari/537.36"));
+    }
+
+    #[test]
+    fn test_mobile_android_facebook_app() {
+        assert!(is_mobile_device("Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/UQ1A.240105.004) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.6099.43 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/441.0.0.36.110]"));
+    }
+
+    #[test]
+    fn test_mobile_ipad() {
+        assert!(is_mobile_device("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"));
+    }
+
+    #[test]
+    fn test_mobile_ipod() {
+        assert!(is_mobile_device("Mozilla/5.0 (iPod touch; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15"));
+    }
+
+    #[test]
+    fn test_desktop_windows_blocked() {
+        assert!(!is_mobile_device("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"));
+    }
+
+    #[test]
+    fn test_desktop_mac_blocked() {
+        assert!(!is_mobile_device("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"));
+    }
+
+    #[test]
+    fn test_desktop_linux_blocked() {
+        assert!(!is_mobile_device("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"));
+    }
+
+    #[test]
+    fn test_mobile_empty_ua_allowed() {
+        assert!(is_mobile_device(""));
+    }
+
+    // ============================================================
+    // REGRA 2: Somente anúncios Facebook/Instagram
+    // ============================================================
+
+    #[test]
+    fn test_fb_ad_fbclid_param() {
+        let mut params = HashMap::new();
+        params.insert("fbclid".into(), "abc123xyz".into());
+        assert!(is_facebook_ad_traffic("", "Mozilla/5.0 (iPhone)", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_igshid_param() {
+        let mut params = HashMap::new();
+        params.insert("igshid".into(), "abc123".into());
+        assert!(is_facebook_ad_traffic("", "Mozilla/5.0 (iPhone)", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_utm_source_facebook() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "facebook".into());
         assert!(is_facebook_ad_traffic("", "", &params));
+    }
 
-        let empty: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    #[test]
+    fn test_fb_ad_utm_source_instagram() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "instagram".into());
+        assert!(is_facebook_ad_traffic("", "", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_utm_source_meta() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "meta".into());
+        assert!(is_facebook_ad_traffic("", "", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_utm_source_fb() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "fb".into());
+        assert!(is_facebook_ad_traffic("", "", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_utm_source_ig() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "ig".into());
+        assert!(is_facebook_ad_traffic("", "", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_referrer_l_facebook() {
+        let empty: HashMap<String, String> = HashMap::new();
+        assert!(is_facebook_ad_traffic("https://l.facebook.com/l.php?u=https://example.com", "Mozilla/5.0 (iPhone)", &empty));
+    }
+
+    #[test]
+    fn test_fb_ad_referrer_lm_facebook() {
+        let empty: HashMap<String, String> = HashMap::new();
+        assert!(is_facebook_ad_traffic("https://lm.facebook.com/l.php?u=https://example.com", "", &empty));
+    }
+
+    #[test]
+    fn test_fb_ad_referrer_l_instagram() {
+        let empty: HashMap<String, String> = HashMap::new();
+        assert!(is_facebook_ad_traffic("https://l.instagram.com/", "", &empty));
+    }
+
+    #[test]
+    fn test_fb_ad_app_ua_fban() {
+        let empty: HashMap<String, String> = HashMap::new();
+        assert!(is_facebook_ad_traffic(
+            "https://facebook.com/something",
+            "Mozilla/5.0 (iPhone) [FBAN/FBIOS;FBAV/441.0]",
+            &empty
+        ));
+    }
+
+    #[test]
+    fn test_fb_ad_no_indicators_blocked() {
+        let empty: HashMap<String, String> = HashMap::new();
+        assert!(!is_facebook_ad_traffic("", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)", &empty));
+    }
+
+    #[test]
+    fn test_fb_ad_google_referrer_blocked() {
+        let empty: HashMap<String, String> = HashMap::new();
+        assert!(!is_facebook_ad_traffic("https://www.google.com/", "Mozilla/5.0 (iPhone)", &empty));
+    }
+
+    #[test]
+    fn test_fb_ad_direct_access_no_params_blocked() {
+        let empty: HashMap<String, String> = HashMap::new();
         assert!(!is_facebook_ad_traffic("", "", &empty));
+    }
+
+    #[test]
+    fn test_fb_ad_utm_source_google_blocked() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "google".into());
+        assert!(!is_facebook_ad_traffic("", "", &params));
+    }
+
+    #[test]
+    fn test_fb_ad_utm_source_tiktok_blocked() {
+        let mut params = HashMap::new();
+        params.insert("utm_source".into(), "tiktok".into());
+        assert!(!is_facebook_ad_traffic("", "", &params));
     }
 }

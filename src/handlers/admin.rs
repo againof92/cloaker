@@ -4,7 +4,7 @@ use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::Form;
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -68,7 +68,7 @@ pub async fn handle_login(
 
         if user == admin_user && pass == admin_pass {
             let session_id = auth::generate_session_id();
-            let expiry = Utc::now() + Duration::hours(24);
+            let expiry = Utc::now() + TimeDelta::hours(24);
             {
                 let mut sessions = state.sessions.write().await;
                 sessions.insert(session_id.clone(), expiry);
@@ -504,18 +504,18 @@ pub async fn handle_delete_link(
 ) -> impl IntoResponse {
     let id = q.get("id").cloned().unwrap_or_default();
     if id.is_empty() {
-        return StatusCode::BAD_REQUEST;
+        return Html(templates::error_page("ID do link ausente")).into_response();
     }
 
     if storage::delete_link(&state.pool, &id).await.is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR;
+        return Html(templates::error_page("Falha ao excluir link do banco")).into_response();
     }
 
     {
         let mut links = state.db.links.write().await;
         links.remove(&id);
     }
-    StatusCode::OK
+    Redirect::to("/m4ciel7/links").into_response()
 }
 
 // ==========================================

@@ -549,4 +549,126 @@ mod tests {
         assert!(validate_slug("oferta 1").is_err());
         assert!(validate_slug("").is_err());
     }
+
+    // ============================================================
+    // REGRA 1: Parâmetro secreto obrigatório (?apx=...)
+    // ============================================================
+
+    fn make_test_link(param_code: &str) -> RedirectLink {
+        let mut link = RedirectLink {
+            id: "test-id".into(),
+            slug: "test-slug".into(),
+            param_hash: String::new(),
+            param_code: String::new(),
+            offer_url: "https://example.com".into(),
+            safe_page_url: String::new(),
+            clicks: 0,
+            blocked: 0,
+            created_at: chrono::Utc::now(),
+            active: true,
+            cloaker_active: true,
+            ad_verify_mode: false,
+            max_clicks: 0,
+            param_ttl: 0,
+            allowed_countries: vec![],
+            blocked_countries: vec![],
+            blocked_ips: vec![],
+            blocked_isps: vec![],
+            block_vpn: false,
+            mobile_only: true,
+            allowed_hours: String::new(),
+            require_facebook: true,
+            protection_total: false,
+            strict_param_required: true,
+            only_facebook_ads: true,
+            advanced_fingerprint: false,
+            ml_bot_detection: false,
+            dynamic_referrer_spoof: false,
+        };
+        if !param_code.is_empty() {
+            set_param(&mut link, param_code);
+        }
+        link
+    }
+
+    #[test]
+    fn test_param_correct_code_accepted() {
+        let link = make_test_link("abc123");
+        assert!(verify_param(&link, "abc123"));
+    }
+
+    #[test]
+    fn test_param_wrong_code_rejected() {
+        let link = make_test_link("abc123");
+        assert!(!verify_param(&link, "wrong-code"));
+    }
+
+    #[test]
+    fn test_param_empty_code_rejected() {
+        let link = make_test_link("abc123");
+        assert!(!verify_param(&link, ""));
+    }
+
+    #[test]
+    fn test_param_no_code_set_rejects_everything() {
+        let link = make_test_link("");
+        assert!(!verify_param(&link, "anything"));
+    }
+
+    #[test]
+    fn test_param_hash_verification_works() {
+        let link = make_test_link("my-secret-code");
+        // Verifica que o hash foi gerado
+        assert!(!link.param_hash.is_empty());
+        // Verifica que o param_code foi armazenado
+        assert_eq!(link.param_code, "my-secret-code");
+        // Verifica pelo hash
+        assert_eq!(link.param_hash, hash_param("my-secret-code"));
+        // Código correto aceito
+        assert!(verify_param(&link, "my-secret-code"));
+        // Código parecido rejeitado
+        assert!(!verify_param(&link, "my-secret-cod"));
+        assert!(!verify_param(&link, "My-Secret-Code"));
+    }
+
+    #[test]
+    fn test_param_case_sensitive() {
+        let link = make_test_link("AbCdEf");
+        assert!(verify_param(&link, "AbCdEf"));
+        assert!(!verify_param(&link, "abcdef"));
+        assert!(!verify_param(&link, "ABCDEF"));
+    }
+
+    #[test]
+    fn test_param_special_characters() {
+        let link = make_test_link("p@r4m!#$%");
+        assert!(verify_param(&link, "p@r4m!#$%"));
+        assert!(!verify_param(&link, "p@r4m"));
+    }
+
+    #[test]
+    fn test_set_param_updates_both_fields() {
+        let mut link = make_test_link("");
+        set_param(&mut link, "new-code");
+        assert_eq!(link.param_code, "new-code");
+        assert_eq!(link.param_hash, hash_param("new-code"));
+        assert!(verify_param(&link, "new-code"));
+    }
+
+    #[test]
+    fn test_generate_code_length() {
+        let code = generate_code(8);
+        assert_eq!(code.len(), 8);
+        let code2 = generate_code(16);
+        assert_eq!(code2.len(), 16);
+        let code3 = generate_code(0);
+        assert!(code3.is_empty());
+    }
+
+    #[test]
+    fn test_generate_code_unique() {
+        let code1 = generate_code(16);
+        let code2 = generate_code(16);
+        assert_ne!(code1, code2);
+    }
 }
