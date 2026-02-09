@@ -12,9 +12,14 @@ fn sidebar(active: &str) -> String {
         ("Criar Link", "/m4ciel7/create"),
         ("Configuracoes", "/m4ciel7/config"),
     ];
-    let mut s = String::from(r#"<div class="sidebar"><div class="logo">M4CIEL</div><div class="menu">"#);
+    let mut s =
+        String::from(r#"<div class="sidebar"><div class="logo">M4CIEL</div><div class="menu">"#);
     for (label, href) in &items {
-        let cls = if *label == active { " class=\"active\"" } else { "" };
+        let cls = if *label == active {
+            " class=\"active\""
+        } else {
+            ""
+        };
         s.push_str(&format!(r#"<a{} href="{}">{}</a>"#, cls, href, label));
     }
     s.push_str("</div></div>");
@@ -71,7 +76,9 @@ fn head(title: &str, extra_css: &str) -> String {
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>{}{}</style></head><body>"#,
-        html_escape(title), base_css(), extra_css
+        html_escape(title),
+        base_css(),
+        extra_css
     )
 }
 
@@ -92,8 +99,9 @@ pub fn login_page(error_msg: &str) -> String {
     } else {
         format!(r#"<div class="error">{}</div>"#, html_escape(error_msg))
     };
-    format!(r#"<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>404 Not Found</title><meta name="robots" content="noindex,nofollow">
-<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}}.login-box{{background:#1a1a1a;padding:40px;border-radius:16px;width:100%;max-width:400px;border:1px solid #333;display:none}}.logo{{text-align:center;font-size:28px;font-weight:bold;margin-bottom:30px;color:#667eea}}.form-group{{margin-bottom:20px}}label{{display:block;margin-bottom:8px;color:#888;font-size:14px}}input{{width:100%;padding:14px;border-radius:8px;border:1px solid #333;background:#252525;color:#fff;font-size:16px}}input:focus{{outline:none;border-color:#667eea}}button{{width:100%;padding:14px;border-radius:8px;border:none;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:transform .2s}}button:hover{{transform:translateY(-2px)}}.error{{background:#ff4444;color:#fff;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center;font-size:14px}}.fake-404{{text-align:center;color:#666}}@media(max-width:900px){{body{{padding:20px}}.login-box{{padding:24px;max-width:100%}}.logo{{font-size:24px;margin-bottom:20px}}}}</style></head><body>
+    format!(
+        r#"<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>404 Not Found</title><meta name="robots" content="noindex,nofollow">
+<style>*{{margin:0;padding:0;box-sizing:border-box}}body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}}.login-box{{background:#1a1a1a;padding:40px;border-radius:16px;width:100%;max-width:400px;border:1px solid #333;display:block}}.logo{{text-align:center;font-size:28px;font-weight:bold;margin-bottom:30px;color:#667eea}}.form-group{{margin-bottom:20px}}label{{display:block;margin-bottom:8px;color:#888;font-size:14px}}input{{width:100%;padding:14px;border-radius:8px;border:1px solid #333;background:#252525;color:#fff;font-size:16px}}input:focus{{outline:none;border-color:#667eea}}button{{width:100%;padding:14px;border-radius:8px;border:none;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:transform .2s}}button:hover{{transform:translateY(-2px)}}.error{{background:#ff4444;color:#fff;padding:12px;border-radius:8px;margin-bottom:20px;text-align:center;font-size:14px}}.fake-404{{text-align:center;color:#666;display:none}}@media(max-width:900px){{body{{padding:20px}}.login-box{{padding:24px;max-width:100%}}.logo{{font-size:24px;margin-bottom:20px}}}}</style></head><body>
 <div class="fake-404" id="fake">404 page not found</div>
 <div class="login-box" id="real">
 <div class="logo">👤 M4CIEL</div>
@@ -106,34 +114,52 @@ pub fn login_page(error_msg: &str) -> String {
 </form></div>
 <script>
 (function(){{
-var isHuman=true;
-if(typeof window==='undefined'||typeof document==='undefined')isHuman=false;
-if(navigator.webdriver===true)isHuman=false;
-if(navigator.plugins.length===0&&!/mobile|android|iphone/i.test(navigator.userAgent))isHuman=false;
-if(!navigator.languages||navigator.languages.length===0)isHuman=false;
-if(window._phantom||window.phantom)isHuman=false;
-if(window.__nightmare)isHuman=false;
-if(screen.width===0||screen.height===0)isHuman=false;
-if(isHuman){{
-document.getElementById('fake').style.display='none';
-document.getElementById('real').style.display='block';
-document.getElementById('jsCheck').value=btoa(Date.now().toString());
-document.querySelector('input[name="username"]').focus();
+var fake=document.getElementById('fake');
+var real=document.getElementById('real');
+var jsCheck=document.getElementById('jsCheck');
+if(!fake||!real){{return;}}
+var obviousBot=false;
+if(typeof window==='undefined'||typeof document==='undefined')obviousBot=true;
+if(navigator.webdriver===true)obviousBot=true;
+if(window._phantom||window.phantom||window.__nightmare)obviousBot=true;
+if(typeof screen!=='undefined'&&(screen.width===0||screen.height===0))obviousBot=true;
+if(obviousBot){{
+fake.style.display='block';
+real.style.display='none';
+return;
 }}
+fake.style.display='none';
+real.style.display='block';
+if(jsCheck){{jsCheck.value=btoa(Date.now().toString());}}
+var userInput=document.querySelector('input[name="username"]');
+if(userInput){{userInput.focus();}}
 }})();
-</script></body></html>"#)
+</script></body></html>"#
+    )
 }
 
 // ============================
 // DASHBOARD
 // ============================
 pub fn dashboard_page(
-    total_links: i32, total_clicks: i32, total_blocked: i32, block_rate: i32,
-    param_name: &str, fb_rule: &str, map_svg: &str, state_counts_json: &str, state_names_json: &str,
+    total_links: i32,
+    total_clicks: i32,
+    total_blocked: i32,
+    block_rate: i32,
+    param_name: &str,
+    fb_rule: &str,
+    map_svg: &str,
+    state_counts_json: &str,
+    state_names_json: &str,
 ) -> String {
     let extra_css = r#".map-wrap{display:grid;gap:12px}.map-container{background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:12px}#br-map svg{width:100%;height:auto;display:block}.map-legend{display:flex;gap:10px;align-items:center;font-size:12px;color:#9aa;flex-wrap:wrap}.legend-swatch{width:14px;height:14px;border-radius:4px;background:#1f1f1f;border:1px solid #2a2a2a}.state-name{font-size:8px;fill:#cfd6ff;font-weight:600;pointer-events:none;paint-order:stroke;stroke:#0f0f0f;stroke-width:1}.state-count{font-size:10px;fill:#ffffff;font-weight:700;pointer-events:none;paint-order:stroke;stroke:#0f0f0f;stroke-width:1}"#;
-    let map = if map_svg.trim().is_empty() { "<div class=\"hint\">Mapa indisponivel.</div>" } else { map_svg };
-    format!(r#"{head}{sidebar}
+    let map = if map_svg.trim().is_empty() {
+        "<div class=\"hint\">Mapa indisponivel.</div>"
+    } else {
+        map_svg
+    };
+    format!(
+        r#"{head}{sidebar}
 <div class="main">
 <h1 style="margin-bottom:16px">Dashboard</h1>
 <div class="stats">
@@ -180,11 +206,23 @@ const mapEs=new EventSource('/m4ciel7/logs/stream');let mapTimer=null;function s
 // ============================
 // LINKS PAGE
 // ============================
-pub fn links_page(param_name: &str, rows: &[(String, String, String, String, i32, i32, bool)]) -> String {
+pub fn links_page(
+    param_name: &str,
+    rows: &[(String, String, String, String, i32, i32, bool)],
+) -> String {
     let mut table_rows = String::new();
     for (id, slug, param_code, offer_url, clicks, blocked, active) in rows {
-        let access_path = format!("/go/{}?{}={}", html_escape(slug), html_escape(param_name), html_escape(param_code));
-        let (status_class, status_text) = if *active { ("active", "Ativo") } else { ("paused", "Pausado") };
+        let access_path = format!(
+            "/go/{}?{}={}",
+            html_escape(slug),
+            html_escape(param_name),
+            html_escape(param_code)
+        );
+        let (status_class, status_text) = if *active {
+            ("active", "Ativo")
+        } else {
+            ("paused", "Pausado")
+        };
         table_rows.push_str(&format!(
             r#"<tr><td>{slug}</td><td><div class="access"><code>{access}</code><button class="btn copy-btn" type="button" data-path="{access}">Copiar</button></div></td><td><a href="{url}" target="_blank" rel="noreferrer">{url}</a></td><td>{clicks}</td><td>{blocked}</td><td><span class="badge {sc}">{st}</span></td><td><a class="btn" href="/m4ciel7/edit?id={id}">Editar</a> <form method="POST" action="/m4ciel7/delete?id={id}" style="display:inline" onsubmit="return confirm('Excluir este link?');"><button class="btn danger" type="submit">Excluir</button></form></td></tr>"#,
             slug = html_escape(slug), access = html_escape(&access_path),
@@ -192,7 +230,8 @@ pub fn links_page(param_name: &str, rows: &[(String, String, String, String, i32
             sc = status_class, st = status_text, id = html_escape(id),
         ));
     }
-    format!(r#"{head}{sidebar}
+    format!(
+        r#"{head}{sidebar}
 <div class="main">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h1>Links</h1><a class="btn primary" href="/m4ciel7/create">Criar Link</a></div>
 <div class="card"><table class="table"><thead><tr><th>Slug</th><th>Acesso</th><th>Oferta</th><th>Cliques</th><th>Bloqueados</th><th>Status</th><th>Acoes</th></tr></thead><tbody>{rows}</tbody></table></div></div>
@@ -210,7 +249,8 @@ document.querySelectorAll('.copy-btn').forEach(function(b){{b.addEventListener('
 // CREATE LINK
 // ============================
 pub fn create_link_page(param_name: &str, default_code: &str) -> String {
-    format!(r#"{head}{sidebar}
+    format!(
+        r#"{head}{sidebar}
 <div class="main" style="max-width:980px">
 <h1 style="margin-bottom:16px">Criar Link</h1>
 <form method="POST">
@@ -250,7 +290,8 @@ pub fn create_link_page(param_name: &str, default_code: &str) -> String {
 pub fn edit_link_page(param_name: &str, link: &RedirectLink) -> String {
     let checked = if link.active { "checked" } else { "" };
     let preview = format!("/go/{}?{}={}", link.slug, param_name, link.param_code);
-    format!(r#"{head}{sidebar}
+    format!(
+        r#"{head}{sidebar}
 <div class="main" style="max-width:980px">
 <h1 style="margin-bottom:16px">Editar Link</h1>
 <form method="POST" action="/m4ciel7/edit?id={id}">
@@ -301,7 +342,8 @@ pub fn edit_link_page(param_name: &str, link: &RedirectLink) -> String {
 // ============================
 pub fn logs_page(logs_b64: &str) -> String {
     let extra_css = ".geo-info{font-size:12px;color:#b4b4b4}.ua-info{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:#b0b0b0}.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.filter-btn{padding:6px 12px;border-radius:8px;border:1px solid #2a2a2a;background:#1f1f1f;color:#9aa;cursor:pointer;font-size:12px}.filter-btn.active,.filter-btn:hover{background:#667eea;color:#fff;border-color:#667eea}";
-    format!(r#"{head}{sidebar}
+    format!(
+        r#"{head}{sidebar}
 <div class="main">
 <h1 style="margin-bottom:16px">Logs de Acesso</h1>
 <div class="filters">
@@ -331,7 +373,8 @@ es.addEventListener('clear',()=>{{allLogs.length=0;renderLogs([]);}});
 // ============================
 pub fn config_page(param_name: &str, only_fb: bool) -> String {
     let checked = if only_fb { "checked" } else { "" };
-    format!(r#"{head}{sidebar}
+    format!(
+        r#"{head}{sidebar}
 <div class="main" style="max-width:720px">
 <h1 style="margin-bottom:16px">Configuracoes</h1>
 <form method="POST">
@@ -354,7 +397,10 @@ pub fn config_page(param_name: &str, only_fb: bool) -> String {
 // ERROR PAGE
 // ============================
 pub fn error_page(msg: &str) -> String {
-    format!(r#"<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Erro</title>
+    format!(
+        r#"<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Erro</title>
 <style>body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f0f;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}.box{{background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:28px;max-width:520px;width:90%;text-align:center}}h1{{font-size:18px;margin:0 0 10px}}p{{color:#bbb;font-size:14px;margin:0 0 18px}}a{{color:#667eea;text-decoration:none}}</style></head><body>
-<div class="box"><h1>Erro</h1><p>{}</p><a href="javascript:history.back()">Voltar</a></div></body></html>"#, html_escape(msg))
+<div class="box"><h1>Erro</h1><p>{}</p><a href="javascript:history.back()">Voltar</a></div></body></html>"#,
+        html_escape(msg)
+    )
 }

@@ -1,13 +1,13 @@
+use axum::extract::ConnectInfo;
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::{Html, Redirect, IntoResponse};
+use axum::http::{HeaderMap, Method, StatusCode};
+use axum::response::{Html, IntoResponse, Redirect};
 use axum::Form;
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use axum::extract::ConnectInfo;
 
 use crate::auth;
 use crate::config;
@@ -25,19 +25,43 @@ pub async fn handle_login(
     jar: CookieJar,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    method: Method,
     form: Option<Form<HashMap<String, String>>>,
 ) -> impl IntoResponse {
     let client_ip = helpers::get_client_ip(&headers, Some(addr));
-    let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok()).unwrap_or("");
-    let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
 
     // Verificação anti-bot
-    if let Some((status, body)) = auth::admin_bot_check(&state, &headers, &client_ip, user_agent, host, "/m4ciel7/login").await {
+    if let Some((status, body)) = auth::admin_bot_check(
+        &state,
+        &headers,
+        &client_ip,
+        user_agent,
+        host,
+        "/m4ciel7/login",
+    )
+    .await
+    {
         return (status, jar, Html(body)).into_response();
     }
 
     // POST → processar login
-    if let Some(Form(form_data)) = form {
+    if method == Method::POST {
+        let Some(Form(form_data)) = form else {
+            return (
+                StatusCode::BAD_REQUEST,
+                jar,
+                Html(templates::login_page("Requisicao invalida")),
+            )
+                .into_response();
+        };
         let user = form_data.get("username").cloned().unwrap_or_default();
         let pass = form_data.get("password").cloned().unwrap_or_default();
         let (admin_user, admin_pass) = config::admin_credentials();
@@ -58,7 +82,12 @@ pub async fn handle_login(
             return (jar, Redirect::to("/m4ciel7")).into_response();
         }
 
-        return (StatusCode::UNAUTHORIZED, jar, Html(templates::login_page("Usuario ou senha incorretos"))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            jar,
+            Html(templates::login_page("Usuario ou senha incorretos")),
+        )
+            .into_response();
     }
 
     // GET → mostrar formulário
@@ -88,7 +117,12 @@ pub async fn handle_dashboard(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     // Content negotiation JSON
-    if headers.get("accept").and_then(|v| v.to_str().ok()).unwrap_or("").contains("application/json") {
+    if headers
+        .get("accept")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .contains("application/json")
+    {
         let (total_links, total_clicks, total_blocked) = get_link_stats(&state).await;
         let config = state.db.config.read().await;
         let json = serde_json::json!({
@@ -107,20 +141,38 @@ pub async fn handle_dashboard(
     drop(config);
 
     let total = total_clicks + total_blocked;
-    let block_rate = if total > 0 { (total_blocked * 100) / total } else { 0 };
-    let fb_rule = if only_fb { "Somente anuncios Facebook/Instagram" } else { "Somente anuncios Facebook/Instagram (DESATIVADO)" };
+    let block_rate = if total > 0 {
+        (total_blocked * 100) / total
+    } else {
+        0
+    };
+    let fb_rule = if only_fb {
+        "Somente anuncios Facebook/Instagram"
+    } else {
+        "Somente anuncios Facebook/Instagram (DESATIVADO)"
+    };
 
     // Mapa de estado: pega logs do DB
-    let logs = storage::get_logs(&state.pool, 1000).await.unwrap_or_default();
+    let logs = storage::get_logs(&state.pool, 1000)
+        .await
+        .unwrap_or_default();
     let state_counts = crate::engine::cloaking::build_state_counts(&logs);
     let state_counts_json = serde_json::to_string(&state_counts).unwrap_or("{}".into());
     let state_names_json = serde_json::to_string(&*helpers::BR_STATE_NAMES).unwrap_or("{}".into());
     let map_svg = helpers::clean_svg(&state.brazil_map_svg);
 
     Html(templates::dashboard_page(
-        total_links, total_clicks, total_blocked, block_rate,
-        &param_name, fb_rule, &map_svg, &state_counts_json, &state_names_json,
-    )).into_response()
+        total_links,
+        total_clicks,
+        total_blocked,
+        block_rate,
+        &param_name,
+        fb_rule,
+        &map_svg,
+        &state_counts_json,
+        &state_names_json,
+    ))
+    .into_response()
 }
 
 // ==========================================
@@ -131,7 +183,12 @@ pub async fn handle_links(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     // JSON
-    if headers.get("accept").and_then(|v| v.to_str().ok()).unwrap_or("").contains("application/json") {
+    if headers
+        .get("accept")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .contains("application/json")
+    {
         let links = state.db.links.read().await;
         let all: Vec<&RedirectLink> = links.values().collect();
         return axum::Json(serde_json::to_value(&all).unwrap_or_default()).into_response();
@@ -142,13 +199,25 @@ pub async fn handle_links(
     drop(config);
 
     let links = state.db.links.read().await;
-    let mut rows: Vec<(String, String, String, String, i32, i32, bool)> = links.values().map(|l| {
-        (l.id.clone(), l.slug.clone(), l.param_code.clone(), l.offer_url.clone(), l.clicks, l.blocked, l.active)
-    }).collect();
+    let mut rows: Vec<(String, String, String, String, i32, i32, bool)> = links
+        .values()
+        .map(|l| {
+            (
+                l.id.clone(),
+                l.slug.clone(),
+                l.param_code.clone(),
+                l.offer_url.clone(),
+                l.clicks,
+                l.blocked,
+                l.active,
+            )
+        })
+        .collect();
     drop(links);
 
     rows.sort_by(|a, b| {
-        b.6.cmp(&a.6).then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
+        b.6.cmp(&a.6)
+            .then_with(|| a.1.to_lowercase().cmp(&b.1.to_lowercase()))
     });
 
     Html(templates::links_page(&param_name, &rows)).into_response()
@@ -166,10 +235,22 @@ pub async fn handle_create_link(
     drop(config);
 
     if let Some(Form(data)) = form {
-        let slug = data.get("slug").map(|s| s.trim().to_string()).unwrap_or_default();
-        let param_code = data.get("param_code").map(|s| s.trim().to_string()).unwrap_or_default();
-        let offer_url = data.get("offer_url").map(|s| s.trim().to_string()).unwrap_or_default();
-        let safe_page_url = data.get("safe_page_url").map(|s| s.trim().to_string()).unwrap_or_default();
+        let slug = data
+            .get("slug")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let param_code = data
+            .get("param_code")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let offer_url = data
+            .get("offer_url")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let safe_page_url = data
+            .get("safe_page_url")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let active = data.get("active").map(|v| v == "on").unwrap_or(false);
 
         if let Err(e) = helpers::validate_slug(&slug) {
@@ -187,28 +268,59 @@ pub async fn handle_create_link(
             }
         }
 
-        let param_code = if param_code.is_empty() { helpers::generate_code(8) } else { param_code };
-        let max_clicks: i32 = data.get("max_clicks").and_then(|s| s.trim().parse().ok()).unwrap_or(0).max(0);
-        let param_ttl: i32 = data.get("param_ttl").and_then(|s| s.trim().parse().ok()).unwrap_or(0).max(0);
-        let allowed_hours = data.get("allowed_hours").map(|s| s.trim().to_string()).unwrap_or_default();
+        let param_code = if param_code.is_empty() {
+            helpers::generate_code(8)
+        } else {
+            param_code
+        };
+        let max_clicks: i32 = data
+            .get("max_clicks")
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0)
+            .max(0);
+        let param_ttl: i32 = data
+            .get("param_ttl")
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0)
+            .max(0);
+        let allowed_hours = data
+            .get("allowed_hours")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
 
         let mut link = RedirectLink {
             id: helpers::generate_code(8),
-            slug, offer_url, safe_page_url,
+            slug,
+            offer_url,
+            safe_page_url,
             param_hash: String::new(),
             param_code: String::new(),
-            clicks: 0, blocked: 0,
+            clicks: 0,
+            blocked: 0,
             created_at: Utc::now(),
             active,
-            cloaker_active: true, ad_verify_mode: false,
-            block_vpn: false, mobile_only: true, require_facebook: true,
-            max_clicks, param_ttl, allowed_hours,
-            allowed_countries: helpers::parse_csv(data.get("allowed_countries").unwrap_or(&String::new())),
-            blocked_countries: helpers::parse_csv(data.get("blocked_countries").unwrap_or(&String::new())),
+            cloaker_active: true,
+            ad_verify_mode: false,
+            block_vpn: false,
+            mobile_only: true,
+            require_facebook: true,
+            max_clicks,
+            param_ttl,
+            allowed_hours,
+            allowed_countries: helpers::parse_csv(
+                data.get("allowed_countries").unwrap_or(&String::new()),
+            ),
+            blocked_countries: helpers::parse_csv(
+                data.get("blocked_countries").unwrap_or(&String::new()),
+            ),
             blocked_ips: helpers::parse_csv(data.get("blocked_ips").unwrap_or(&String::new())),
             blocked_isps: helpers::parse_csv(data.get("blocked_isps").unwrap_or(&String::new())),
-            protection_total: false, strict_param_required: true, only_facebook_ads: true,
-            advanced_fingerprint: false, ml_bot_detection: false, dynamic_referrer_spoof: false,
+            protection_total: false,
+            strict_param_required: true,
+            only_facebook_ads: true,
+            advanced_fingerprint: false,
+            ml_bot_detection: false,
+            dynamic_referrer_spoof: false,
         };
         helpers::set_param(&mut link, &param_code);
 
@@ -217,7 +329,9 @@ pub async fn handle_create_link(
             links.insert(link.id.clone(), link.clone());
         }
         let pool = state.pool.clone();
-        tokio::spawn(async move { let _ = storage::save_link(&pool, &link).await; });
+        tokio::spawn(async move {
+            let _ = storage::save_link(&pool, &link).await;
+        });
 
         return Redirect::to("/m4ciel7/links").into_response();
     }
@@ -244,10 +358,22 @@ pub async fn handle_edit_link(
     drop(config);
 
     if let Some(Form(data)) = form {
-        let slug = data.get("slug").map(|s| s.trim().to_string()).unwrap_or_default();
-        let param_code = data.get("param_code").map(|s| s.trim().to_string()).unwrap_or_default();
-        let offer_url = data.get("offer_url").map(|s| s.trim().to_string()).unwrap_or_default();
-        let safe_page_url = data.get("safe_page_url").map(|s| s.trim().to_string()).unwrap_or_default();
+        let slug = data
+            .get("slug")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let param_code = data
+            .get("param_code")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let offer_url = data
+            .get("offer_url")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let safe_page_url = data
+            .get("safe_page_url")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         let active = data.get("active").map(|v| v == "on").unwrap_or(false);
 
         if let Err(e) = helpers::validate_slug(&slug) {
@@ -257,13 +383,26 @@ pub async fn handle_edit_link(
             return Html(templates::error_page(&e)).into_response();
         }
 
-        let max_clicks: i32 = data.get("max_clicks").and_then(|s| s.trim().parse().ok()).unwrap_or(0).max(0);
-        let param_ttl: i32 = data.get("param_ttl").and_then(|s| s.trim().parse().ok()).unwrap_or(0).max(0);
-        let allowed_hours = data.get("allowed_hours").map(|s| s.trim().to_string()).unwrap_or_default();
+        let max_clicks: i32 = data
+            .get("max_clicks")
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0)
+            .max(0);
+        let param_ttl: i32 = data
+            .get("param_ttl")
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0)
+            .max(0);
+        let allowed_hours = data
+            .get("allowed_hours")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
 
         let mut links = state.db.links.write().await;
         // Verifica slug duplicado antes do borrow mutável
-        let slug_taken = links.values().any(|l| l.id != id && l.slug.eq_ignore_ascii_case(&slug));
+        let slug_taken = links
+            .values()
+            .any(|l| l.id != id && l.slug.eq_ignore_ascii_case(&slug));
         if let Some(link) = links.get_mut(&id) {
             if !slug.eq_ignore_ascii_case(&link.slug) && slug_taken {
                 return Html(templates::error_page("Slug ja em uso")).into_response();
@@ -275,10 +414,14 @@ pub async fn handle_edit_link(
             link.max_clicks = max_clicks;
             link.param_ttl = param_ttl;
             link.allowed_hours = allowed_hours;
-            link.allowed_countries = helpers::parse_csv(data.get("allowed_countries").unwrap_or(&String::new()));
-            link.blocked_countries = helpers::parse_csv(data.get("blocked_countries").unwrap_or(&String::new()));
-            link.blocked_ips = helpers::parse_csv(data.get("blocked_ips").unwrap_or(&String::new()));
-            link.blocked_isps = helpers::parse_csv(data.get("blocked_isps").unwrap_or(&String::new()));
+            link.allowed_countries =
+                helpers::parse_csv(data.get("allowed_countries").unwrap_or(&String::new()));
+            link.blocked_countries =
+                helpers::parse_csv(data.get("blocked_countries").unwrap_or(&String::new()));
+            link.blocked_ips =
+                helpers::parse_csv(data.get("blocked_ips").unwrap_or(&String::new()));
+            link.blocked_isps =
+                helpers::parse_csv(data.get("blocked_isps").unwrap_or(&String::new()));
             // Regras fixas
             link.cloaker_active = true;
             link.ad_verify_mode = false;
@@ -298,7 +441,9 @@ pub async fn handle_edit_link(
 
             let link_clone = link.clone();
             let pool = state.pool.clone();
-            tokio::spawn(async move { let _ = storage::save_link(&pool, &link_clone).await; });
+            tokio::spawn(async move {
+                let _ = storage::save_link(&pool, &link_clone).await;
+            });
         } else {
             return Html(templates::error_page("Link nao encontrado")).into_response();
         }
@@ -330,7 +475,9 @@ pub async fn handle_delete_link(
         links.remove(&id);
     }
     let pool = state.pool.clone();
-    tokio::spawn(async move { let _ = storage::delete_link(&pool, &id).await; });
+    tokio::spawn(async move {
+        let _ = storage::delete_link(&pool, &id).await;
+    });
     StatusCode::OK
 }
 
@@ -342,7 +489,10 @@ pub async fn handle_config(
     form: Option<Form<HashMap<String, String>>>,
 ) -> impl IntoResponse {
     if let Some(Form(data)) = form {
-        let param_name = data.get("param_name").map(|s| s.trim().to_string()).unwrap_or_default();
+        let param_name = data
+            .get("param_name")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
         if let Err(e) = helpers::validate_param_name(&param_name) {
             return Html(templates::error_page(&e)).into_response();
         }
@@ -356,12 +506,18 @@ pub async fn handle_config(
         drop(cfg);
 
         let pool = state.pool.clone();
-        tokio::spawn(async move { let _ = storage::save_config(&pool, &cfg_clone).await; });
+        tokio::spawn(async move {
+            let _ = storage::save_config(&pool, &cfg_clone).await;
+        });
         return Redirect::to("/m4ciel7/config").into_response();
     }
 
     let cfg = state.db.config.read().await;
-    Html(templates::config_page(&cfg.param_name, cfg.only_facebook_ads)).into_response()
+    Html(templates::config_page(
+        &cfg.param_name,
+        cfg.only_facebook_ads,
+    ))
+    .into_response()
 }
 
 // Helpers
@@ -371,7 +527,9 @@ async fn get_link_stats(state: &Arc<AppState>) -> (i32, i32, i32) {
     let mut total_clicks = 0;
     let mut total_blocked = 0;
     for link in links.values() {
-        if link.active { total_links += 1; }
+        if link.active {
+            total_links += 1;
+        }
         total_clicks += link.clicks;
         total_blocked += link.blocked;
     }
@@ -380,7 +538,7 @@ async fn get_link_stats(state: &Arc<AppState>) -> (i32, i32, i32) {
 
 async fn is_slug_taken(state: &Arc<AppState>, slug: &str, exclude_id: &str) -> bool {
     let links = state.db.links.read().await;
-    links.values().any(|l| {
-        (exclude_id.is_empty() || l.id != exclude_id) && l.slug.eq_ignore_ascii_case(slug)
-    })
+    links
+        .values()
+        .any(|l| (exclude_id.is_empty() || l.id != exclude_id) && l.slug.eq_ignore_ascii_case(slug))
 }
