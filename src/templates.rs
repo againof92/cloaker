@@ -141,22 +141,24 @@ if(userInput){{userInput.focus();}}
 // ============================
 // DASHBOARD
 // ============================
-pub fn dashboard_page(
-    total_links: i32,
-    total_clicks: i32,
-    total_blocked: i32,
-    block_rate: i32,
-    param_name: &str,
-    fb_rule: &str,
-    map_svg: &str,
-    state_counts_json: &str,
-    state_names_json: &str,
-) -> String {
+pub struct DashboardPageData<'a> {
+    pub total_links: i32,
+    pub total_clicks: i32,
+    pub total_blocked: i32,
+    pub block_rate: i32,
+    pub param_name: &'a str,
+    pub fb_rule: &'a str,
+    pub map_svg: &'a str,
+    pub state_counts_json: &'a str,
+    pub state_names_json: &'a str,
+}
+
+pub fn dashboard_page(data: DashboardPageData<'_>) -> String {
     let extra_css = r#".map-wrap{display:grid;gap:12px}.map-container{background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:12px}#br-map svg{width:100%;height:auto;display:block}.map-legend{display:flex;gap:10px;align-items:center;font-size:12px;color:#9aa;flex-wrap:wrap}.legend-swatch{width:14px;height:14px;border-radius:4px;background:#1f1f1f;border:1px solid #2a2a2a}.state-name{font-size:8px;fill:#cfd6ff;font-weight:600;pointer-events:none;paint-order:stroke;stroke:#0f0f0f;stroke-width:1}.state-count{font-size:10px;fill:#ffffff;font-weight:700;pointer-events:none;paint-order:stroke;stroke:#0f0f0f;stroke-width:1}"#;
-    let map = if map_svg.trim().is_empty() {
+    let map = if data.map_svg.trim().is_empty() {
         "<div class=\"hint\">Mapa indisponivel.</div>"
     } else {
-        map_svg
+        data.map_svg
     };
     format!(
         r#"{head}{sidebar}
@@ -191,15 +193,15 @@ const mapEs=new EventSource('/m4ciel7/logs/stream');let mapTimer=null;function s
 </script></body></html>"#,
         head = head("Dashboard", extra_css),
         sidebar = sidebar("Dashboard"),
-        total_links = total_links,
-        total_clicks = total_clicks,
-        total_blocked = total_blocked,
-        block_rate = block_rate,
-        param_name = html_escape(param_name),
-        fb_rule = html_escape(fb_rule),
+        total_links = data.total_links,
+        total_clicks = data.total_clicks,
+        total_blocked = data.total_blocked,
+        block_rate = data.block_rate,
+        param_name = html_escape(data.param_name),
+        fb_rule = html_escape(data.fb_rule),
         map = map,
-        state_counts_json = state_counts_json,
-        state_names_json = state_names_json,
+        state_counts_json = data.state_counts_json,
+        state_names_json = data.state_names_json,
     )
 }
 

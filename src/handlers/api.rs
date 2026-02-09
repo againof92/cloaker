@@ -1,3 +1,4 @@
+use axum::extract::ConnectInfo;
 use axum::extract::{Query, State};
 use axum::http::HeaderMap;
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -10,7 +11,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
-use axum::extract::ConnectInfo;
 
 use crate::engine::{cloaking, helpers};
 use crate::storage;
@@ -26,7 +26,9 @@ pub async fn handle_stats(State(state): State<Arc<AppState>>) -> impl IntoRespon
     let mut total_clicks = 0i32;
     let mut total_blocked = 0i32;
     for link in links.values() {
-        if link.active { total_links += 1; }
+        if link.active {
+            total_links += 1;
+        }
         total_clicks += link.clicks;
         total_blocked += link.blocked;
     }
@@ -41,7 +43,9 @@ pub async fn handle_stats(State(state): State<Arc<AppState>>) -> impl IntoRespon
 // MAP STATS (JSON)
 // ==========================================
 pub async fn handle_map_stats(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let logs = storage::get_logs(&state.pool, 1000).await.unwrap_or_default();
+    let logs = storage::get_logs(&state.pool, 1000)
+        .await
+        .unwrap_or_default();
     let counts = cloaking::build_state_counts(&logs);
     Json(counts)
 }
@@ -53,9 +57,16 @@ pub async fn handle_logs(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let logs = storage::get_logs(&state.pool, 1000).await.unwrap_or_default();
+    let logs = storage::get_logs(&state.pool, 1000)
+        .await
+        .unwrap_or_default();
 
-    if headers.get("accept").and_then(|v| v.to_str().ok()).unwrap_or("").contains("application/json") {
+    if headers
+        .get("accept")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .contains("application/json")
+    {
         return Json(serde_json::to_value(&logs).unwrap_or_default()).into_response();
     }
 
@@ -72,21 +83,17 @@ pub async fn handle_logs_stream(
     let log_rx = state.log_tx.subscribe();
     let clear_rx = state.clear_tx.subscribe();
 
-    let log_stream = BroadcastStream::new(log_rx).filter_map(|result| {
-        match result {
-            Ok(entry) => {
-                let data = serde_json::to_string(&entry).unwrap_or_default();
-                Some(Ok(Event::default().event("log").data(data)))
-            }
-            Err(_) => None,
+    let log_stream = BroadcastStream::new(log_rx).filter_map(|result| match result {
+        Ok(entry) => {
+            let data = serde_json::to_string(&entry).unwrap_or_default();
+            Some(Ok(Event::default().event("log").data(data)))
         }
+        Err(_) => None,
     });
 
-    let clear_stream = BroadcastStream::new(clear_rx).filter_map(|result| {
-        match result {
-            Ok(_) => Some(Ok(Event::default().event("clear").data("{}"))),
-            Err(_) => None,
-        }
+    let clear_stream = BroadcastStream::new(clear_rx).filter_map(|result| match result {
+        Ok(_) => Some(Ok(Event::default().event("clear").data("{}"))),
+        Err(_) => None,
     });
 
     let merged = futures::stream::select(log_stream, clear_stream);
@@ -112,7 +119,10 @@ pub async fn handle_geoip_test(
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
-    let ip = q.get("ip").cloned().unwrap_or_else(|| helpers::get_client_ip(&headers, Some(addr)));
+    let ip = q
+        .get("ip")
+        .cloned()
+        .unwrap_or_else(|| helpers::get_client_ip(&headers, Some(addr)));
     let geo = state.geo_cache.get_geo_info(&ip).await;
     Json(geo)
 }

@@ -69,7 +69,7 @@ pub fn generate_code(length: usize) -> String {
     if length == 0 {
         return String::new();
     }
-    let bytes_needed = (length + 1) / 2;
+    let bytes_needed = length.div_ceil(2);
     let mut buf = vec![0u8; bytes_needed];
     rand::thread_rng().fill(&mut buf[..]);
     let hex_str = hex::encode(&buf);
@@ -83,7 +83,7 @@ pub fn parse_csv(input: &str) -> Vec<String> {
         return vec![];
     }
     input
-        .split(|c: char| c == ',' || c == '\n' || c == '\r' || c == ';' || c == '\t')
+        .split([',', '\n', '\r', ';', '\t'])
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect()
@@ -245,11 +245,11 @@ pub fn normalize_state_name(s: &str) -> String {
     }
     let lower = s.to_lowercase();
     lower
-        .replace('á', "a").replace('à', "a").replace('â', "a").replace('ã', "a").replace('ä', "a")
-        .replace('é', "e").replace('ê', "e").replace('è', "e").replace('ë', "e")
-        .replace('í', "i").replace('ì', "i").replace('î', "i").replace('ï', "i")
-        .replace('ó', "o").replace('ô', "o").replace('ò', "o").replace('õ', "o").replace('ö', "o")
-        .replace('ú', "u").replace('ù', "u").replace('û', "u").replace('ü', "u")
+        .replace(['á', 'à', 'â', 'ã', 'ä'], "a")
+        .replace(['é', 'ê', 'è', 'ë'], "e")
+        .replace(['í', 'ì', 'î', 'ï'], "i")
+        .replace(['ó', 'ô', 'ò', 'õ', 'ö'], "o")
+        .replace(['ú', 'ù', 'û', 'ü'], "u")
         .replace('ç', "c")
         .replace('-', " ")
         .split_whitespace()
@@ -290,7 +290,9 @@ pub fn validate_param_name(name: &str) -> Result<(), String> {
     }
     let re = regex::Regex::new(r"^[a-zA-Z0-9_-]{1,32}$").unwrap();
     if !re.is_match(name) {
-        return Err("Nome do parametro invalido. Use apenas letras, numeros, '_' ou '-' (1-32)".into());
+        return Err(
+            "Nome do parametro invalido. Use apenas letras, numeros, '_' ou '-' (1-32)".into(),
+        );
     }
     Ok(())
 }
@@ -392,7 +394,11 @@ fn base_href_for_url(raw: &str) -> String {
                 let dir = match path.rfind('/') {
                     Some(idx) => {
                         let d = &path[..=idx];
-                        if d.is_empty() { "/" } else { d }
+                        if d.is_empty() {
+                            "/"
+                        } else {
+                            d
+                        }
                     }
                     None => "/",
                 };
@@ -461,7 +467,10 @@ pub fn first_forwarded_ip(xff: &str) -> String {
     String::new()
 }
 
-pub fn get_client_ip(headers: &axum::http::HeaderMap, remote_addr: Option<std::net::SocketAddr>) -> String {
+pub fn get_client_ip(
+    headers: &axum::http::HeaderMap,
+    remote_addr: Option<std::net::SocketAddr>,
+) -> String {
     // CF-Connecting-IP (Cloudflare)
     if let Some(cf) = headers.get("CF-Connecting-IP") {
         let ip = normalize_ip(cf.to_str().unwrap_or(""));
@@ -484,9 +493,7 @@ pub fn get_client_ip(headers: &axum::http::HeaderMap, remote_addr: Option<std::n
         }
     }
     // Remote addr
-    remote_addr
-        .map(|a| a.ip().to_string())
-        .unwrap_or_default()
+    remote_addr.map(|a| a.ip().to_string()).unwrap_or_default()
 }
 
 use chrono::Timelike;

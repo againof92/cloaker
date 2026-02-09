@@ -19,11 +19,7 @@ impl GeoCache {
 
     pub async fn get_geo_info(&self, ip: &str) -> GeoInfo {
         // Ignora IPs locais
-        if ip == "127.0.0.1"
-            || ip == "::1"
-            || ip.starts_with("192.168.")
-            || ip.starts_with("10.")
-        {
+        if ip == "127.0.0.1" || ip == "::1" || ip.starts_with("192.168.") || ip.starts_with("10.") {
             return GeoInfo {
                 status: "success".into(),
                 country: "Local".into(),
@@ -139,7 +135,13 @@ impl GeoCache {
             isp: conn.and_then(|c| c.isp.clone()).unwrap_or_default(),
             org: conn.and_then(|c| c.org.clone()).unwrap_or_default(),
             as_info: conn.and_then(|c| c.asn.clone()).unwrap_or_default(),
-            proxy: sec.map(|s| s.proxy.unwrap_or(false) || s.tor.unwrap_or(false) || s.anonymous.unwrap_or(false)).unwrap_or(false),
+            proxy: sec
+                .map(|s| {
+                    s.proxy.unwrap_or(false)
+                        || s.tor.unwrap_or(false)
+                        || s.anonymous.unwrap_or(false)
+                })
+                .unwrap_or(false),
             hosting: sec.and_then(|s| s.hosting).unwrap_or(false),
         })
     }

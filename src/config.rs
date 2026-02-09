@@ -26,15 +26,13 @@ impl Default for ServerConfig {
 }
 
 pub fn admin_credentials() -> (String, String) {
-    let user = std::env::var("CLOAKER_ADMIN_USER").unwrap_or_else(|_| "m4ciel".into());
-    let pass = std::env::var("CLOAKER_ADMIN_PASS").unwrap_or_else(|_| "linux0303".into());
+    let user = std::env::var("CLOAKER_ADMIN_USER").unwrap_or_else(|_| "admin".into());
+    let pass = std::env::var("CLOAKER_ADMIN_PASS").unwrap_or_else(|_| "change-me".into());
     (user.trim().to_string(), pass.trim().to_string())
 }
 
 pub fn database_url() -> String {
     std::env::var("DATABASE_URL")
         .or_else(|_| std::env::var("CLOAKER_DATABASE_URL"))
-        .unwrap_or_else(|_| {
-            "postgres://postgres.rednfqywjwmkcvhkftaq:linux0303%24dsksdhkj@aws-0-us-west-2.pooler.supabase.com:6543/postgres?sslmode=require".into()
-        })
+        .unwrap_or_else(|_| "postgres://postgres:postgres@127.0.0.1:5432/postgres".into())
 }

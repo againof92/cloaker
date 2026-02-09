@@ -60,22 +60,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    tracing::info!("Cloaker iniciando...");
-
     // Banco de dados
     let db_url = config::database_url();
-    tracing::info!("Conectando ao banco: {}...{}", &db_url[..30.min(db_url.len())], &db_url[db_url.len().saturating_sub(20)..]);
-    let pool = match storage::create_pool(&db_url).await {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::error!("Falha ao conectar no banco: {}", e);
-            return Err(e.into());
-        }
-    };
-    if let Err(e) = storage::migrate(&pool).await {
-        tracing::error!("Falha nas migrações: {}", e);
-        return Err(e.into());
-    }
+    let pool = storage::create_pool(&db_url).await?;
+    storage::migrate(&pool).await?;
 
     let db = Arc::new(models::AppDatabase::new());
     storage::load(&pool, &db).await?;
@@ -152,10 +140,7 @@ async fn main() -> anyhow::Result<()> {
             "/m4ciel7/config",
             get(handlers::admin::handle_config).post(handlers::admin::handle_config),
         )
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            require_auth,
-        ));
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let app = public_routes.merge(admin_routes).with_state(state);
 
@@ -197,16 +182,20 @@ fn spawn_cleanup(state: Arc<AppState>) {
                 sess.retain(|_, ts| *ts > cutoff);
             }
 
-            // Limpa seen_ips cujo bloqueio já expirou (> 120 s)
+            // Limpa seen_ips antigos (ou bloqueio já expirado)
             {
                 let mut seen = state.db.seen_ips.write().await;
                 let now = chrono::Utc::now();
+                let seen_cutoff = now - chrono::Duration::hours(24);
                 seen.retain(|_, ip| {
-                    if let Some(blocked_at) = ip.blocked_at {
-                        now.signed_duration_since(blocked_at).num_seconds() <= 120
-                    } else {
-                        true
-                    }
+                    let recently_seen = ip.last_seen > seen_cutoff;
+                    let block_still_active = ip
+                        .blocked_at
+                        .map(|blocked_at| {
+                            now.signed_duration_since(blocked_at).num_seconds() <= 120
+                        })
+                        .unwrap_or(false);
+                    recently_seen || block_still_active
                 });
             }
 
@@ -214,9 +203,7 @@ fn spawn_cleanup(state: Arc<AppState>) {
             {
                 let mut cache = state.db.param_cache.write().await;
                 let now = chrono::Utc::now();
-                cache.retain(|_, pc| {
-                    now.signed_duration_since(pc.created_at).num_hours() < 24
-                });
+                cache.retain(|_, pc| now.signed_duration_since(pc.created_at).num_hours() < 24);
             }
         }
     });

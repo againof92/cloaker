@@ -2,9 +2,9 @@ use axum::http::{HeaderMap, StatusCode};
 use axum_extra::extract::cookie::CookieJar;
 use chrono::Utc;
 use rand::Rng;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use std::collections::HashMap;
 
 use crate::engine::bot_detect;
 

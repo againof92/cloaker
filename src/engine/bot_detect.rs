@@ -1,23 +1,72 @@
 /// User agents de bots conhecidos
 pub static BOT_USER_AGENTS: &[&str] = &[
-    "googlebot", "bingbot", "slurp", "duckduckbot", "baiduspider",
-    "yandexbot", "sogou", "exabot", "facebot", "facebookexternalhit",
-    "ia_archiver", "mj12bot", "semrushbot", "ahrefsbot", "dotbot",
-    "rogerbot", "seznambot", "crawler", "spider", "bot", "scraper",
-    "curl", "wget", "python-requests", "httpie", "postman", "insomnia",
-    "selenium", "phantomjs", "headless", "puppeteer", "playwright",
-    "httrack", "apache-httpclient", "java/", "libwww", "lwp-trivial",
-    "go-http-client", "php/", "ruby", "perl", "python-urllib",
-    "adsbot", "mediapartners", "adreview", "facebookcatalog",
+    "googlebot",
+    "bingbot",
+    "slurp",
+    "duckduckbot",
+    "baiduspider",
+    "yandexbot",
+    "sogou",
+    "exabot",
+    "facebot",
+    "facebookexternalhit",
+    "ia_archiver",
+    "mj12bot",
+    "semrushbot",
+    "ahrefsbot",
+    "dotbot",
+    "rogerbot",
+    "seznambot",
+    "crawler",
+    "spider",
+    "bot",
+    "scraper",
+    "curl",
+    "wget",
+    "python-requests",
+    "httpie",
+    "postman",
+    "insomnia",
+    "selenium",
+    "phantomjs",
+    "headless",
+    "puppeteer",
+    "playwright",
+    "httrack",
+    "apache-httpclient",
+    "java/",
+    "libwww",
+    "lwp-trivial",
+    "go-http-client",
+    "php/",
+    "ruby",
+    "perl",
+    "python-urllib",
+    "adsbot",
+    "mediapartners",
+    "adreview",
+    "facebookcatalog",
 ];
 
 /// Assinaturas de ferramentas de automação
 static AUTOMATION_SIGNATURES: &[&str] = &[
-    "selenium", "webdriver", "puppeteer", "playwright", "phantomjs",
-    "headless", "headlesschrome", "chromeheadless",
-    "electron", "nightmare", "cypress",
-    "browserless", "chrome-lighthouse",
-    "inspect", "debugger", "lucid", "clarity",
+    "selenium",
+    "webdriver",
+    "puppeteer",
+    "playwright",
+    "phantomjs",
+    "headless",
+    "headlesschrome",
+    "chromeheadless",
+    "electron",
+    "nightmare",
+    "cypress",
+    "browserless",
+    "chrome-lighthouse",
+    "inspect",
+    "debugger",
+    "lucid",
+    "clarity",
 ];
 
 /// Verifica se o User-Agent é de um bot conhecido
@@ -90,7 +139,13 @@ pub fn is_facebook_ad_traffic(
 
     // User-Agent do app Facebook/Instagram
     let fb_app_signatures = [
-        "fban/", "fbios", "fb_iab", "fbav/", "instagram", "[fban", "[fbss",
+        "fban/",
+        "fbios",
+        "fb_iab",
+        "fbav/",
+        "instagram",
+        "[fban",
+        "[fbss",
     ];
     let app_ua = fb_app_signatures.iter().any(|sig| ua_lower.contains(sig));
 
@@ -140,8 +195,12 @@ mod tests {
     fn test_is_mobile_device() {
         assert!(is_mobile_device("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0)"));
         assert!(is_mobile_device("Mozilla/5.0 (Linux; Android 13)"));
-        assert!(!is_mobile_device("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"));
-        assert!(!is_mobile_device("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"));
+        assert!(!is_mobile_device(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        ));
+        assert!(!is_mobile_device(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        ));
     }
 
     #[test]

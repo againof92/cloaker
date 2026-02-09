@@ -1,10 +1,10 @@
-use crate::models::{AccessLog, GeoInfo, ParamCache, RedirectLink, SeenIP};
 use crate::engine::bot_detect;
 use crate::engine::helpers;
+use crate::models::{AccessLog, GeoInfo, ParamCache, RedirectLink, SeenIP};
+use crate::AppState;
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::AppState;
 
 const SEEN_IP_MAX_ATTEMPTS: i32 = 10;
 const SEEN_IP_BLOCK_SECONDS: i64 = 60;
@@ -15,24 +15,31 @@ pub struct AccessResult {
     pub reason: String,
 }
 
+pub struct AccessContext<'a> {
+    pub query_params: &'a HashMap<String, String>,
+    pub client_ip: &'a str,
+    pub user_agent: &'a str,
+    pub referer: &'a str,
+    pub geo: &'a GeoInfo,
+}
+
 /// Valida se o acesso deve ser redirecionado para a oferta ou bloqueado
 pub async fn validate_access(
     state: &Arc<AppState>,
-    _headers: &axum::http::HeaderMap,
-    query_params: &HashMap<String, String>,
-    client_ip: &str,
-    user_agent: &str,
-    referer: &str,
-    geo: &GeoInfo,
     link: &RedirectLink,
+    ctx: AccessContext<'_>,
 ) -> AccessResult {
     let config = state.db.config.read().await;
     let param_name = config.param_name.clone();
     let only_fb_ads = config.only_facebook_ads;
     drop(config);
 
-    let param_code = query_params.get(&param_name).cloned().unwrap_or_default();
-    let ua_lower = user_agent.to_lowercase();
+    let param_code = ctx
+        .query_params
+        .get(&param_name)
+        .cloned()
+        .unwrap_or_default();
+    let ua_lower = ctx.user_agent.to_lowercase();
 
     // Regras sempre ativas
     let strict_param = true;
@@ -55,18 +62,16 @@ pub async fn validate_access(
                 reason: "Parametro invalido".into(),
             };
         }
-        if link.param_ttl > 0 {
-            if is_param_expired(state, link, &param_code).await {
-                return AccessResult {
-                    allowed: false,
-                    reason: "Parametro expirado".into(),
-                };
-            }
+        if link.param_ttl > 0 && is_param_expired(state, link, &param_code).await {
+            return AccessResult {
+                allowed: false,
+                reason: "Parametro expirado".into(),
+            };
         }
     }
 
     // IP temporariamente bloqueado
-    if let Some(reason) = is_ip_temporarily_blocked(state, &link.id, client_ip).await {
+    if let Some(reason) = is_ip_temporarily_blocked(state, &link.id, ctx.client_ip).await {
         return AccessResult {
             allowed: false,
             reason,
@@ -77,11 +82,12 @@ pub async fn validate_access(
     let mut reason = String::new();
 
     // Somente tráfego de anúncio FB/IG
-    if allowed && only_fb_ads {
-        if !bot_detect::is_facebook_ad_traffic(referer, user_agent, query_params) {
-            allowed = false;
-            reason = "Acesso apenas via anuncio Facebook/Instagram".into();
-        }
+    if allowed
+        && only_fb_ads
+        && !bot_detect::is_facebook_ad_traffic(ctx.referer, ctx.user_agent, ctx.query_params)
+    {
+        allowed = false;
+        reason = "Acesso apenas via anuncio Facebook/Instagram".into();
     }
 
     // Limite de cliques
@@ -91,14 +97,17 @@ pub async fn validate_access(
     }
 
     // Horário permitido
-    if allowed && !link.allowed_hours.is_empty() && !helpers::is_within_allowed_hours(&link.allowed_hours) {
+    if allowed
+        && !link.allowed_hours.is_empty()
+        && !helpers::is_within_allowed_hours(&link.allowed_hours)
+    {
         allowed = false;
         reason = "Acesso fora do horario permitido".into();
     }
 
     // Filtros de país
     if allowed {
-        let cc = geo.country_code.to_uppercase();
+        let cc = ctx.geo.country_code.to_uppercase();
         if !cc.is_empty() && cc != "XX" {
             if !link.allowed_countries.is_empty()
                 && !helpers::contains_ignore_case(&link.allowed_countries, &cc)
@@ -117,19 +126,25 @@ pub async fn validate_access(
     }
 
     // IPs bloqueados
-    if allowed && !link.blocked_ips.is_empty() && helpers::is_ip_blocked(client_ip, &link.blocked_ips) {
+    if allowed
+        && !link.blocked_ips.is_empty()
+        && helpers::is_ip_blocked(ctx.client_ip, &link.blocked_ips)
+    {
         allowed = false;
         reason = "IP bloqueado".into();
     }
 
     // ISPs bloqueados
-    if allowed && !link.blocked_isps.is_empty() && helpers::is_isp_blocked(&geo.isp, &geo.org, &link.blocked_isps) {
+    if allowed
+        && !link.blocked_isps.is_empty()
+        && helpers::is_isp_blocked(&ctx.geo.isp, &ctx.geo.org, &link.blocked_isps)
+    {
         allowed = false;
         reason = "ISP bloqueado".into();
     }
 
     // Apenas mobile
-    if allowed && mobile_only && !bot_detect::is_mobile_device(user_agent) {
+    if allowed && mobile_only && !bot_detect::is_mobile_device(ctx.user_agent) {
         allowed = false;
         reason = "Apenas dispositivos moveis permitidos".into();
     }
@@ -146,7 +161,15 @@ pub async fn validate_access(
     }
 
     // Registra seen IP
-    let result = register_seen_ip(state, &link.id, client_ip, user_agent, allowed, &reason).await;
+    let result = register_seen_ip(
+        state,
+        &link.id,
+        ctx.client_ip,
+        ctx.user_agent,
+        allowed,
+        &reason,
+    )
+    .await;
     AccessResult {
         allowed: result.0,
         reason: result.1,
@@ -154,7 +177,11 @@ pub async fn validate_access(
 }
 
 /// Verifica se IP está temporariamente bloqueado
-async fn is_ip_temporarily_blocked(state: &Arc<AppState>, link_id: &str, ip: &str) -> Option<String> {
+async fn is_ip_temporarily_blocked(
+    state: &Arc<AppState>,
+    link_id: &str,
+    ip: &str,
+) -> Option<String> {
     let key = format!("{}:{}", link_id, ip);
     let seen_ips = state.db.seen_ips.read().await;
     if let Some(entry) = seen_ips.get(&key) {
@@ -203,33 +230,31 @@ async fn register_seen_ip(
         }
     }
 
-    // Persiste no DB (fire and forget)
-    let entry_clone = entry.clone();
-    let pool = state.pool.clone();
-    tokio::spawn(async move {
-        let _ = crate::storage::upsert_seen_ip(&pool, &key, &entry_clone).await;
-    });
-
+    let mut final_allowed = allowed;
+    let mut final_reason = reason.to_string();
     if allowed {
         entry.last_seen = now;
         entry.attempts = 0;
         entry.user_agent = user_agent.to_string();
-        return (true, reason.to_string());
+    } else {
+        entry.attempts += 1;
+        entry.last_seen = now;
+        entry.user_agent = user_agent.to_string();
+
+        if entry.attempts >= SEEN_IP_MAX_ATTEMPTS {
+            entry.blocked_at = Some(now);
+            final_allowed = false;
+            final_reason =
+                "IP bloqueado! Limite de 10 tentativas atingido. Aguarde 1 minuto".into();
+        }
     }
 
-    entry.attempts += 1;
-    entry.last_seen = now;
-    entry.user_agent = user_agent.to_string();
+    // Persiste no DB já com estado final atualizado.
+    let entry_clone = entry.clone();
+    drop(seen_ips);
+    let _ = crate::storage::upsert_seen_ip(&state.pool, &key, &entry_clone).await;
 
-    if entry.attempts >= SEEN_IP_MAX_ATTEMPTS {
-        entry.blocked_at = Some(now);
-        return (
-            false,
-            "IP bloqueado! Limite de 10 tentativas atingido. Aguarde 1 minuto".into(),
-        );
-    }
-
-    (false, reason.to_string())
+    (final_allowed, final_reason)
 }
 
 /// Verifica se o parâmetro expirou
@@ -297,9 +322,7 @@ pub fn build_state_counts(logs: &[AccessLog]) -> HashMap<String, i32> {
         let date_key = entry.timestamp.format("%Y-%m-%d").to_string();
         let unique_key = format!("{}|{}", date_key, ip);
 
-        seen.entry(code.clone())
-            .or_default()
-            .insert(unique_key);
+        seen.entry(code.clone()).or_default().insert(unique_key);
     }
 
     for (code, ips) in &seen {

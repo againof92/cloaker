@@ -161,17 +161,17 @@ pub async fn handle_dashboard(
     let state_names_json = serde_json::to_string(&*helpers::BR_STATE_NAMES).unwrap_or("{}".into());
     let map_svg = helpers::clean_svg(&state.brazil_map_svg);
 
-    Html(templates::dashboard_page(
+    Html(templates::dashboard_page(templates::DashboardPageData {
         total_links,
         total_clicks,
         total_blocked,
         block_rate,
-        &param_name,
+        param_name: &param_name,
         fb_rule,
-        &map_svg,
-        &state_counts_json,
-        &state_names_json,
-    ))
+        map_svg: &map_svg,
+        state_counts_json: &state_counts_json,
+        state_names_json: &state_names_json,
+    }))
     .into_response()
 }
 
@@ -270,10 +270,8 @@ pub async fn handle_create_link(
         if let Err(e) = helpers::validate_offer_url(&offer_url) {
             return Html(templates::error_page(&e)).into_response();
         }
-        if !safe_page_url.is_empty() {
-            if let Err(_) = helpers::validate_offer_url(&safe_page_url) {
-                return Html(templates::error_page("Safe page URL invalida")).into_response();
-            }
+        if !safe_page_url.is_empty() && helpers::validate_offer_url(&safe_page_url).is_err() {
+            return Html(templates::error_page("Safe page URL invalida")).into_response();
         }
 
         let param_code = if param_code.is_empty() {
@@ -332,14 +330,18 @@ pub async fn handle_create_link(
         };
         helpers::set_param(&mut link, &param_code);
 
+        if storage::save_link(&state.pool, &link).await.is_err() {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(templates::error_page("Falha ao salvar link no banco")),
+            )
+                .into_response();
+        }
+
         {
             let mut links = state.db.links.write().await;
             links.insert(link.id.clone(), link.clone());
         }
-        let pool = state.pool.clone();
-        tokio::spawn(async move {
-            let _ = storage::save_link(&pool, &link).await;
-        });
 
         return Redirect::to("/m4ciel7/links").into_response();
     }
@@ -398,6 +400,9 @@ pub async fn handle_edit_link(
         if let Err(e) = helpers::validate_offer_url(&offer_url) {
             return Html(templates::error_page(&e)).into_response();
         }
+        if !safe_page_url.is_empty() && helpers::validate_offer_url(&safe_page_url).is_err() {
+            return Html(templates::error_page("Safe page URL invalida")).into_response();
+        }
 
         let max_clicks: i32 = data
             .get("max_clicks")
@@ -414,56 +419,68 @@ pub async fn handle_edit_link(
             .map(|s| s.trim().to_string())
             .unwrap_or_default();
 
-        let mut links = state.db.links.write().await;
-        // Verifica slug duplicado antes do borrow mutável
-        let slug_taken = links
-            .values()
-            .any(|l| l.id != id && l.slug.eq_ignore_ascii_case(&slug));
-        if let Some(link) = links.get_mut(&id) {
-            if !slug.eq_ignore_ascii_case(&link.slug) && slug_taken {
+        let mut updated_link = {
+            let links = state.db.links.read().await;
+            let slug_taken = links
+                .values()
+                .any(|l| l.id != id && l.slug.eq_ignore_ascii_case(&slug));
+            let Some(current) = links.get(&id) else {
+                return Html(templates::error_page("Link nao encontrado")).into_response();
+            };
+            if !slug.eq_ignore_ascii_case(&current.slug) && slug_taken {
                 return Html(templates::error_page("Slug ja em uso")).into_response();
             }
-            link.slug = slug;
-            link.offer_url = offer_url;
-            link.safe_page_url = safe_page_url;
-            link.active = active;
-            link.max_clicks = max_clicks;
-            link.param_ttl = param_ttl;
-            link.allowed_hours = allowed_hours;
-            link.allowed_countries =
-                helpers::parse_csv(data.get("allowed_countries").unwrap_or(&String::new()));
-            link.blocked_countries =
-                helpers::parse_csv(data.get("blocked_countries").unwrap_or(&String::new()));
-            link.blocked_ips =
-                helpers::parse_csv(data.get("blocked_ips").unwrap_or(&String::new()));
-            link.blocked_isps =
-                helpers::parse_csv(data.get("blocked_isps").unwrap_or(&String::new()));
-            // Regras fixas
-            link.cloaker_active = true;
-            link.ad_verify_mode = false;
-            link.block_vpn = false;
-            link.mobile_only = true;
-            link.require_facebook = true;
-            link.protection_total = false;
-            link.strict_param_required = true;
-            link.only_facebook_ads = true;
-            link.advanced_fingerprint = false;
-            link.ml_bot_detection = false;
-            link.dynamic_referrer_spoof = false;
+            current.clone()
+        };
 
-            if !param_code.is_empty() && param_code != link.param_code {
-                helpers::set_param(link, &param_code);
-            }
+        updated_link.slug = slug;
+        updated_link.offer_url = offer_url;
+        updated_link.safe_page_url = safe_page_url;
+        updated_link.active = active;
+        updated_link.max_clicks = max_clicks;
+        updated_link.param_ttl = param_ttl;
+        updated_link.allowed_hours = allowed_hours;
+        updated_link.allowed_countries =
+            helpers::parse_csv(data.get("allowed_countries").unwrap_or(&String::new()));
+        updated_link.blocked_countries =
+            helpers::parse_csv(data.get("blocked_countries").unwrap_or(&String::new()));
+        updated_link.blocked_ips =
+            helpers::parse_csv(data.get("blocked_ips").unwrap_or(&String::new()));
+        updated_link.blocked_isps =
+            helpers::parse_csv(data.get("blocked_isps").unwrap_or(&String::new()));
+        // Regras fixas
+        updated_link.cloaker_active = true;
+        updated_link.ad_verify_mode = false;
+        updated_link.block_vpn = false;
+        updated_link.mobile_only = true;
+        updated_link.require_facebook = true;
+        updated_link.protection_total = false;
+        updated_link.strict_param_required = true;
+        updated_link.only_facebook_ads = true;
+        updated_link.advanced_fingerprint = false;
+        updated_link.ml_bot_detection = false;
+        updated_link.dynamic_referrer_spoof = false;
 
-            let link_clone = link.clone();
-            let pool = state.pool.clone();
-            tokio::spawn(async move {
-                let _ = storage::save_link(&pool, &link_clone).await;
-            });
-        } else {
-            return Html(templates::error_page("Link nao encontrado")).into_response();
+        if !param_code.is_empty() && param_code != updated_link.param_code {
+            helpers::set_param(&mut updated_link, &param_code);
         }
-        drop(links);
+
+        if storage::save_link(&state.pool, &updated_link)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(templates::error_page("Falha ao atualizar link no banco")),
+            )
+                .into_response();
+        }
+
+        {
+            let mut links = state.db.links.write().await;
+            links.insert(updated_link.id.clone(), updated_link);
+        }
+
         return Redirect::to("/m4ciel7/links").into_response();
     }
 
@@ -486,14 +503,18 @@ pub async fn handle_delete_link(
     Query(q): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let id = q.get("id").cloned().unwrap_or_default();
+    if id.is_empty() {
+        return StatusCode::BAD_REQUEST;
+    }
+
+    if storage::delete_link(&state.pool, &id).await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+
     {
         let mut links = state.db.links.write().await;
         links.remove(&id);
     }
-    let pool = state.pool.clone();
-    tokio::spawn(async move {
-        let _ = storage::delete_link(&pool, &id).await;
-    });
     StatusCode::OK
 }
 
@@ -522,17 +543,32 @@ pub async fn handle_config(
         }
         let only_fb = data.get("only_fb_ads").map(|v| v == "on").unwrap_or(false);
 
-        let mut cfg = state.db.config.write().await;
-        cfg.param_name = param_name;
-        cfg.require_param = true;
-        cfg.only_facebook_ads = only_fb;
-        let cfg_clone = cfg.clone();
-        drop(cfg);
+        let mut updated_cfg = {
+            let cfg = state.db.config.read().await;
+            cfg.clone()
+        };
+        updated_cfg.param_name = param_name;
+        updated_cfg.require_param = true;
+        updated_cfg.only_facebook_ads = only_fb;
 
-        let pool = state.pool.clone();
-        tokio::spawn(async move {
-            let _ = storage::save_config(&pool, &cfg_clone).await;
-        });
+        if storage::save_config(&state.pool, &updated_cfg)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(templates::error_page(
+                    "Falha ao salvar configuracoes no banco",
+                )),
+            )
+                .into_response();
+        }
+
+        {
+            let mut cfg = state.db.config.write().await;
+            *cfg = updated_cfg;
+        }
+
         return Redirect::to("/m4ciel7/config").into_response();
     }
 
