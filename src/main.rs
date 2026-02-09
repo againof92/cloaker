@@ -60,10 +60,22 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
+    tracing::info!("Cloaker iniciando...");
+
     // Banco de dados
     let db_url = config::database_url();
-    let pool = storage::create_pool(&db_url).await?;
-    storage::migrate(&pool).await?;
+    tracing::info!("Conectando ao banco: {}...{}", &db_url[..30.min(db_url.len())], &db_url[db_url.len().saturating_sub(20)..]);
+    let pool = match storage::create_pool(&db_url).await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("Falha ao conectar no banco: {}", e);
+            return Err(e.into());
+        }
+    };
+    if let Err(e) = storage::migrate(&pool).await {
+        tracing::error!("Falha nas migrações: {}", e);
+        return Err(e.into());
+    }
 
     let db = Arc::new(models::AppDatabase::new());
     storage::load(&pool, &db).await?;
