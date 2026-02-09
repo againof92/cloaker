@@ -91,6 +91,16 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
             user_agent TEXT
         )"#,
         // Migrações incrementais (idempotentes)
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS max_clicks INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS param_ttl INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS param_code TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS ad_verify_mode BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS allowed_countries JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS blocked_countries JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS blocked_ips JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS blocked_isps JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS block_vpn BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE links ADD COLUMN IF NOT EXISTS allowed_hours TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE links ADD COLUMN IF NOT EXISTS protection_total BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE links ADD COLUMN IF NOT EXISTS strict_param_required BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE links ADD COLUMN IF NOT EXISTS only_facebook_ads BOOLEAN NOT NULL DEFAULT FALSE",
